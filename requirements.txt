@@ -1,0 +1,6 @@
+Flask
+gunicorn
+Pillow
+loguru
+python-dotenv
+google-generativeai
