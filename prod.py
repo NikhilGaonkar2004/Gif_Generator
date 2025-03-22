@@ -25,6 +25,12 @@ if not GEMINI_API_KEY:
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
+# Determine the proper resampling filter based on Pillow version.
+try:
+    resample_filter = Image.Resampling.LANCZOS
+except AttributeError:
+    resample_filter = Image.LANCZOS
+
 def generate_frames(prompt, max_retries=3):
     """
     Generate animation frames using the Gemini API.
@@ -66,8 +72,18 @@ def generate_frames(prompt, max_retries=3):
 def image_to_base64(image):
     """Convert a PIL image to a base64-encoded string."""
     buffered = BytesIO()
-    image.save(buffered, format="PNG")
-    return base64.b64encode(buffered.getvalue()).decode('utf-8')
+    try:
+        # Convert image to RGB mode to avoid errors during saving
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+        image.save(buffered, format="PNG")
+        encoded = base64.b64encode(buffered.getvalue()).decode('utf-8')
+    except Exception as e:
+        logger.error(f"Error converting image to base64: {e}")
+        encoded = ""
+    finally:
+        buffered.close()
+    return encoded
 
 @app.errorhandler(Exception)
 def handle_exception(e):
@@ -102,7 +118,7 @@ def index():
         style = request.form.get("style", "in an 8-bit pixel art style")[:50]   # Limit to 50 characters
         template = "Create an animation by generating multiple frames, showing"
         info = ",keep the size of the images and background consistent in all the frames"
-        prompt = f"{template} {subject} {style}"[:300]  # Limit to 200 characters
+        prompt = f"{template} {subject} {style}"[:300]  # Limit to 300 characters
         
         try:
             response = generate_frames(prompt)
@@ -115,13 +131,19 @@ def index():
 
         frames = []  # To store PIL Image objects
 
+        # Maximum allowed size to reduce memory usage
+        max_size = (800, 800)
+
         # Extract frames from the response
         if response and response.candidates:
             for part in response.candidates[0].content.parts:
                 if part.inline_data is not None:
                     try:
                         image = Image.open(BytesIO(part.inline_data.data))
+                        # Convert to RGBA and resize if necessary to use less memory
                         image = image.convert("RGBA")
+                        if image.size[0] > max_size[0] or image.size[1] > max_size[1]:
+                            image.thumbnail(max_size, resample=resample_filter)
                         frames.append(image)
                         frames_base64.append(image_to_base64(image))
                         logger.info("Frame loaded successfully.")
@@ -133,12 +155,15 @@ def index():
 
         if frames:
             try:
-                # Create animated GIF in memory
+                # Create animated GIF in memory using optimized frames
                 gif_bytes = BytesIO()
-                frames[0].save(gif_bytes, format="GIF", save_all=True,
-                               append_images=frames[1:], duration=500, loop=0, disposal=2)
+                # Convert frames to 'P' mode for GIF optimization
+                optimized_frames = [frame.convert('P', palette=Image.ADAPTIVE) for frame in frames]
+                optimized_frames[0].save(gif_bytes, format="GIF", save_all=True,
+                                          append_images=optimized_frames[1:], duration=500, loop=0, disposal=2)
                 gif_bytes.seek(0)
                 gif_base64 = base64.b64encode(gif_bytes.getvalue()).decode('utf-8')
+                gif_bytes.close()
                 result = "success"
                 logger.info("Animation successfully created.")
             except Exception as e:
@@ -415,4 +440,3 @@ input[type="submit"]:hover {
 if __name__ == "__main__":
     # Use Gunicorn in production instead of Flask's built-in server
     app.run(host="0.0.0.0", port=8000)
-
