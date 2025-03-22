@@ -4,8 +4,8 @@ import base64
 from io import BytesIO
 
 from flask import Flask, request, render_template_string, jsonify
-from google import genai
-from google.genai import types
+import google.generativeai as genai
+from google.generativeai import types
 from PIL import Image
 from loguru import logger
 
@@ -413,5 +413,6 @@ input[type="submit"]:hover {
 '''
 
 if __name__ == "__main__":
-    # In production, use a WSGI server (e.g., gunicorn) instead of Flask's built-in server.
-    app.run(host="0.0.0.0", port=8000, debug=False)
+    # Use Gunicorn in production instead of Flask's built-in server
+    app.run(host="0.0.0.0", port=8000)
+
