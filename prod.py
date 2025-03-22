@@ -4,8 +4,8 @@ import base64
 from io import BytesIO
 
 from flask import Flask, request, render_template_string, jsonify
-import google.generativeai as genai
-from google.generativeai import types
+from google import genai
+from google.genai import types
 from PIL import Image
 from loguru import logger
 
