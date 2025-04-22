@@ -116,7 +116,7 @@ def index():
     if request.method == "POST":
         subject = request.form.get("subject", "A cute dancing monkey")[:60]  # Limit to 60 characters
         style = request.form.get("style", "in an 8-bit pixel art style")[:50]   # Limit to 50 characters
-        template = "Create an animation by generating multiple frames, showing"
+        template = "Create an animation by generating multiple frames up to 7, showing"
         info = ",keep the size of the images and background consistent in all the frames"
         prompt = f"{template} {subject} {style}"[:300]  # Limit to 300 characters
         
